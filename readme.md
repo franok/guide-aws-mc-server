@@ -1,4 +1,7 @@
-# Running a cost-efficient Minecraft server on AWS
+# Running a cost-efficient Minecraft server on AWS (old 2020 edition)
+
+new edition: https://github.com/franok/guide-aws-mc-server
+latest blog post: https://franok.de/techblog/2022/on-demand-minecraft-server-on-aws.html
 
 A **step by step guide to set up your own Minecraft server on AWS** can be found at [franok.de/techblog](https://franok.de/techblog/2020/cost-efficient-hosting-of-minecraft-server-on-aws.html)
 
