@@ -1,12 +1,12 @@
-# Running a cost-efficient Minecraft server on AWS
+# Running a cost-efficient on-demand Minecraft Server on AWS
 
-A **step by step guide to set up your own Minecraft server on AWS** can be found at [franok.de/techblog](https://franok.de/techblog/2020/cost-efficient-hosting-of-minecraft-server-on-aws.html)
+A **step by step guide to set up your own Minecraft server on AWS** can be found at [franok.de/techblog](https://franok.de/techblog/2022/on-demand-minecraft-server-on-aws.html)
 
 
 ## setup 
 
 ### aws services
-- EC2 (t2.micro for setup/trial, t3.medium for productive use)
+- EC2 (t2.micro for setup/trial, a1.xlarge for productive use)
 - EBS (comes with EC2, disable "delete on termination" to make it absolutely persistent!)
 - S3 (for server cold storage/backup)
 
@@ -33,21 +33,16 @@ spigot-based mc-server wrapped in paper
 
 https://papermc.io/
 
-changelog: 
-https://papermc.io/downloads#Paper-1.15
-
 when updating paper, also plugins need to be updated (search on the internet which plugin version is compatible with with server version!)
 
 some useful plugins that won't ruin survival gaming:
-* https://dev.bukkit.org/projects/multiverse-portals/files/3074603
-* https://dev.bukkit.org/projects/multiverse-core/files/3074594
-* https://www.spigotmc.org/resources/luckperms.28140/
-* https://dev.bukkit.org/projects/worldedit/files/3059623
-* https://dev.bukkit.org/projects/worldguard/files/3066271
+* https://dev.bukkit.org/projects/multiverse-portals
+* https://dev.bukkit.org/projects/multiverse-core
+* https://luckperms.net/download
+* https://dev.bukkit.org/projects/worldedit
+* https://dev.bukkit.org/projects/worldguard
 
-download via wget/curl not possible due to redirects, so download via browser and copy the jar files into the s3 bucket web interface, into the server's plugins/ folder
-
-check `user_data.sh` script for commands that can be used to copy data from s3 bucket to EBS
+download via wget/curl not possible due to redirects, so download via browser and copy the jar files into the s3 bucket web interface, into the server's plugins/ folder (e.g. use `scp` command)
 
 
 
@@ -75,7 +70,12 @@ ssh -i <keypair.pem> ec2-user@<public-ipv4>
 
 ### backing up the server files to s3
 ```
-aws s3 cp --recursive /minecraft/mc-server s3://<s3-bucket-name>/backup/$(date '+%Y-%m-%d')/mc-server
+# remove existing backup tar file, if exists:
+rm -v /minecraft/mc-server.tar
+# zip latest server data into tar file:
+tar cf /minecraft/mc-server.tar /minecraft/mc-server
+# copy to s3:
+aws s3 cp /minecraft/mc-server.tar s3://<s3-bucket-name>/backup/$(date '+%Y-%m-%d')/
 ```
 
 
