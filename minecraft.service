@@ -7,7 +7,7 @@ After=network.target
 Type=simple
 User=ec2-user
 WorkingDirectory=/minecraft/mc-server
-ExecStart=/usr/bin/java -Xms6G -Xmx6G -jar paper-current.jar --nogui
+ExecStart=/usr/bin/java -Xms6G -Xmx6G -jar <mc-server-jarfile-name>.jar --nogui
 
 [Install]
 WantedBy=multi-user.target
