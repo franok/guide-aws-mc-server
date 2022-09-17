@@ -1,0 +1,47 @@
+---
+- name: Prune backups to 3 most-recent ones
+  hosts: localhost
+  vars_files: # variable precedence https://docs.ansible.com/ansible/2.7/user_guide/playbooks_variables.html#variable-precedence-where-should-i-put-a-variable
+     - ../configuration/vars/config.yml
+  gather_facts: true
+  tasks:
+    - name: Get backup directories from S3 
+      amazon.aws.aws_s3:
+        region: "{{ config.aws.region }}"
+        bucket: "{{ config.aws.s3.bucket.name }}"
+        mode: list
+        prefix: ansible/backup/
+      register: s3_out
+
+    - name: Create backup list
+      set_fact:
+        backups: "{{ backups | default([]) | union([item]) }}"
+      loop: "{{ s3_out.s3_keys }}"
+
+    - name: Cancel pruning actions, if no old backups found
+      block:
+      - name: Check backup count size
+        ansible.builtin.debug:
+          msg: No more than 3 backups found. Skipping prune actions.
+        when: (backups is defined) and (backups | length <= 3)
+      - meta: end_play
+        when: (backups is defined) and (backups | length <= 3)
+
+    - name: Sort backup array
+      set_fact:
+        backups_sorted: "{{ backups | sort }}"
+
+    - name: Select backups to delete
+      set_fact:
+        # caution! if length < 3 this will not return an empty array, but apply python slicing magic! to prevent this a length check and 'meta: end_play' was implemented in a previous task
+        backups_to_delete: "{{ backups_sorted[:(backups_sorted | length) -3] }}" # keep 3 most recent
+        
+    - name: Delete old backups
+      # ansible.builtin.debug:
+      #   msg: "{{ item }}"
+      amazon.aws.aws_s3:
+        region: "{{ config.aws.region }}"
+        bucket: "{{ config.aws.s3.bucket.name }}"
+        mode: delobj
+        object: "{{ item }}"
+      loop: "{{ backups_to_delete }}"

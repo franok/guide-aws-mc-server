@@ -1,0 +1,37 @@
+---
+- name: Stop and Backup the Minecraft Server
+  hosts: just_launched
+  become: yes # become root
+  user: ec2-user
+  vars_files: # variable precedence https://docs.ansible.com/ansible/2.7/user_guide/playbooks_variables.html#variable-precedence-where-should-i-put-a-variable
+     - ../configuration/vars/config.yml
+  vars:
+    ansible_ssh_private_key_file: "{{ config.ssh.keyfile }}"
+  gather_facts: true
+  tasks:
+    - name: Stop Minecraft Server
+      ansible.builtin.systemd:
+        state: stopped
+        name: minecraft.service
+
+    - name: Remove old mc-server.tar
+      ansible.builtin.shell: rm -v mc-server.tar
+      args:
+        chdir: /minecraft/ # go to minecraft dir, before running command
+        removes: /minecraft/mc-server.tar # removes if exists    
+
+    - name: Zip mc-server
+      ansible.builtin.shell: tar cf /minecraft/mc-server.tar /minecraft/mc-server
+      args:
+        chdir: /minecraft/ # go to minecraft dir, before running command
+        creates: /minecraft/mc-server.tar # if not already exists
+    
+    - name: Backup mc-server.tar to S3 /ansible/backup
+      ansible.builtin.shell: aws s3 cp /minecraft/mc-server.tar s3://{{ config.aws.s3.bucket.name }}/ansible/backup/$(date '+%Y-%m-%dT%H-%M')/
+      args:
+        chdir: /minecraft/ # go to minecraft dir, before running command
+
+    - name: Copy mc-server.tar back to S3 /ansible/setup for next start
+      ansible.builtin.shell: aws s3 cp /minecraft/mc-server.tar s3://{{ config.aws.s3.bucket.name }}/ansible/setup/
+      args:
+        chdir: /minecraft/ # go to minecraft dir, before running command

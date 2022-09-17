@@ -1,0 +1,7 @@
+---
+- name: Post-install Tasks
+  hosts: localhost
+  tasks:
+  - name: Print Server IP Address # finally, after the MC-Server is up.
+    ansible.builtin.debug:
+      msg: "Minecraft Server public IP address: {{ lookup('ansible.builtin.file', '../.hosts') | split('=') | last }}"

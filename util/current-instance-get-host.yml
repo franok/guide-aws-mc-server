@@ -1,0 +1,28 @@
+---
+- name: Add Current Instance to hosts
+  hosts: localhost
+  vars_files:
+     - ../configuration/vars/config.yml
+  tasks:
+  - name: Get Instance Details
+    ec2_instance_info:
+      region: "{{ config.aws.region }}"
+      filters:
+        "tag:Name": "{{ config.aws.ec2.instance.name }}"
+        instance-state-name: ["running"]
+    register: instance_out
+
+  - name: Get public IPv4 address
+    set_fact:
+      public_ip: "{{ item.public_ip_address }}"
+    with_items: "{{ instance_out.instances }}"
+
+  - name: Write public IPv4 to .hosts file
+    ansible.builtin.copy:
+      content: "just_launched ansible_host={{ public_ip }}"
+      dest: ../.hosts
+
+  - name: Add EC2 instance to host group # make remote host accessible for current playbook run ansible
+    add_host:
+      name: "{{ public_ip }}"
+      groups: just_launched

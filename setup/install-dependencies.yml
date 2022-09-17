@@ -1,0 +1,28 @@
+---
+- name: Install Dependencies on EC2 instance
+  hosts: just_launched
+  become: yes # become root
+  user: ec2-user
+  vars_files: # variable precedence https://docs.ansible.com/ansible/2.7/user_guide/playbooks_variables.html#variable-precedence-where-should-i-put-a-variable
+     - ../configuration/vars/config.yml
+  vars:
+    ansible_ssh_private_key_file: "{{ config.ssh.keyfile }}"
+  gather_facts: true
+  tasks:
+    - name: Install Java
+      package:
+        state: present
+        name: "{{ config.aws.deps.java.package }}"
+
+    - name: Install other dependencies
+      package:
+        state: present
+        name: 
+          - setools
+          - polkit
+          - htop
+    
+    - name: Start polkit
+      ansible.builtin.systemd:
+        state: started
+        name: polkit

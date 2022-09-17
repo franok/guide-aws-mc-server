@@ -1,9 +1,20 @@
-# Running a cost-efficient on-demand Minecraft Server on AWS
+# Ansible Playbooks for Deploying a Minecraft Server on AWS
 
-A **step by step guide to set up your own Minecraft server on AWS** can be found at [franok.de/techblog](https://franok.de/techblog/2022/on-demand-minecraft-server-on-aws.html)
+## Setup Instructions
 
-For **setup instructions using Ansible**, refer to the blog post [Deploying a Minecraft Server on AWS with Ansible](https://franok.de/techblog/2022/automated-deployment-of-minecraft-server-on-aws-with-ansible.html) and the respective [ansible branch](https://github.com/franok/guide-aws-mc-server/tree/ansible) of this repository.
+Read the blog post [Deploying a Minecraft Server on AWS with Ansible](https://franok.de/techblog/2022/automated-deployment-of-minecraft-server-on-aws-with-ansible.html).
 
+### Deploy and Launch Minecraft on AWS
+The `setup.yml` playbook creates infrastructure on AWS and directly spins up the minecraft server:
+```
+ansible-playbook setup.yml
+```
+
+### Teardown
+The `teardown.yml` playbook stops the Minecraft Server, creates a backup and terminates the EC2 instance:
+```
+ansible-playbook teardown.yml
+```
 
 
 ## PaperMC
@@ -47,6 +58,8 @@ ssh -i <path/to/keypair.pem> ec2-user@<public-ipv4>
 ```
 
 ### backing up the server files to s3
+Usually this is not necessary, since a backup will be created every time the teardown.yml playbook is executed. Anyways, here's how to do it manually:
+
 ```
 # remove existing backup tar file, if exists:
 rm -v /minecraft/mc-server.tar
@@ -67,3 +80,6 @@ aws s3 cp /minecraft/mc-server.tar s3://<s3-bucket-name>/backup/$(date '+%Y-%m-%
 
 
 
+## Credits
+
+These playbooks are based on [Naveen Malik](https://github.com/jewzaam)'s repo (https://github.com/jewzaam/minecraft-ansible).

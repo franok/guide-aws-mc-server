@@ -1,0 +1,15 @@
+---
+- name: Graceful Teardown
+  hosts: localhost
+
+- name: Add Current Instance to hosts
+  ansible.builtin.import_playbook: util/current-instance-get-host.yml
+
+- name: Stop Minecraft Server and create Backup
+  ansible.builtin.import_playbook: teardown/stop-and-backup.yml
+
+- name: Terminate EC2 Instance
+  ansible.builtin.import_playbook: teardown/terminate-ec2.yml
+
+- name: Prune backups
+  ansible.builtin.import_playbook: teardown/prune-backups.yml

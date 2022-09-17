@@ -1,0 +1,55 @@
+---
+- name: Monitoring
+  hosts: localhost
+  vars_files:
+     - ../configuration/vars/config.yml
+  tasks:
+  - name: Create alarm SNS topic
+    community.aws.sns_topic:
+      name: "{{ config.aws.cloudwatch.sns_topic.name }}"
+      state: present
+      display_name: "MC-Server is still running (ansible) !!! Trying to stop it..."
+      delivery_policy:
+        http:
+          defaultHealthyRetryPolicy:
+            minDelayTarget: 2
+            maxDelayTarget: 4
+            numRetries: 9
+            numMaxDelayRetries: 5
+            numMinDelayRetries: 2
+            numNoDelayRetries: 2
+            backoffFunction: "linear"
+          disableSubscriptionOverrides: True
+          defaultThrottlePolicy:
+            maxReceivesPerSecond: 1
+      subscriptions:
+        - endpoint: "{{ config.aws.cloudwatch.sns_topic.email }}"
+          protocol: "email"
+        # add more entries to the list
+        # - endpoint: "{{ config.aws.cloudwatch.sns_topic.email2 }}"
+        #   protocol: "email"
+
+  - name: Setup CloudWatch alarm to stop instance, if idle
+    ec2_metric_alarm:
+      state: present
+      region: "{{ config.aws.region }}"
+      namespace: AWS/EC2
+      alarm_actions:
+        - "arn:aws:swf:{{ config.aws.region }}:{{ config.aws.account_id }}:action/actions/AWS_EC2.InstanceId.Stop/1.0"
+        - "arn:aws:sns:{{ config.aws.region }}:{{ config.aws.account_id }}:{{ config.aws.cloudwatch.sns_topic.name }}"
+      evaluation_periods: 3 # breaching the threshold 3 times within 3x 5 minutes triggers the alarm (evaluation_periods * period = 3 * 300 = 900s = 15min)
+      metric: NetworkIn
+      name: "{{ config.aws.cloudwatch.name }}"
+      period: 300 # seconds (300s = 5min )
+      unit: Bytes
+      threshold: 2500
+      comparison: LessThanThreshold
+      description: > 
+        If no inbound traffic is detected within threshold, the instance is stopped (not terminated!).
+        No backup of the minecraft server has been created, yet!
+        Maybe you want to create a backup, before terminating the instance?
+        To do so, start the instance again (not via ansible!) and then trigger a graceful teardown using ansible.
+        Calling 'ansible-playbook teardown.yml' will create a backup before terminating the instance.
+      dimensions: {'InstanceId': "{{ instance_id }}"}
+      statistic: Average
+    when: config.aws.cloudwatch.enabled is defined

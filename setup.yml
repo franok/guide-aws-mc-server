@@ -1,0 +1,15 @@
+---
+- name: Setup Minecraft Server on EC2
+  hosts: localhost
+
+- name: Create EC2 Instance
+  ansible.builtin.import_playbook: setup/create-ec2.yml 
+
+- name: Install Dependencies
+  ansible.builtin.import_playbook: setup/install-dependencies.yml
+
+- name: Initialize Minecraft Server
+  ansible.builtin.import_playbook: setup/initialize-mc-server.yml
+
+- name: Post-install Steps
+  ansible.builtin.import_playbook: setup/post-install.yml

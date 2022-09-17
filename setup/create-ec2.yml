@@ -1,0 +1,120 @@
+---
+- name: Setup all EC2 components
+  hosts: localhost
+  vars_files:
+     - ../configuration/vars/config.yml
+  tasks:
+  # Network setup
+  - name: Create VPC
+    ec2_vpc_net:
+      state: present
+      region: "{{ config.aws.region }}"
+      name: "{{ config.aws.ec2.vpc.name }}"
+      cidr_block: "{{ config.aws.ec2.vpc.cidr }}"
+    register: vpc_out
+
+  - name: Create Subnet
+    ec2_vpc_subnet:
+      state: present
+      region: "{{ config.aws.region }}"
+      vpc_id: "{{ vpc_out.vpc.id }}"
+      cidr: "{{ config.aws.ec2.vpc.subnet.cidr }}"
+      az: "{{ config.aws.zone }}" # uncomment to explicitly specify availability zone. Otherwise, let aws select it.
+      tags:
+        Name: "{{ config.aws.ec2.vpc.subnet.name }}"
+    register: subnet_out
+
+  - name: Create Internet Gateway
+    ec2_vpc_igw:
+      state: present
+      region: "{{ config.aws.region }}"
+      vpc_id: "{{ vpc_out.vpc.id }}"
+      tags:
+        Name: "{{ config.aws.ec2.vpc.internet_gateway.name }}"
+    register: igw_out
+
+  - name: Manage Route Table
+    ec2_vpc_route_table:
+      state: present
+      region: "{{ config.aws.region }}"
+      vpc_id: "{{ vpc_out.vpc.id }}"
+      subnets:
+        - "{{ subnet_out.subnet.id }}"
+      routes:
+        - dest: 0.0.0.0/0
+          gateway_id: "{{ igw_out.gateway_id }}"
+      tags:
+        Name: "{{ config.aws.ec2.vpc.routing_table.name }}"
+
+  - name: Create Security Group
+    ec2_group:
+      state: present
+      region: "{{ config.aws.region }}"
+      vpc_id: "{{ vpc_out.vpc.id }}"
+      name: "{{ config.aws.ec2.vpc.group.name }}" 
+      description: "ansible mc server security group"
+      rules: "{{ config.aws.ec2.vpc.group.rules }}"
+      tags:
+        Name: "{{ config.aws.ec2.vpc.group.name }}"
+    register: group_out
+  
+  # IAM setup
+  - name: Create S3 IAM policy
+    community.aws.iam_managed_policy:
+      region: "{{ config.aws.region }}"
+      state: present
+      policy_name: "{{ config.aws.iam.policy.name }}"
+      policy_description: S3 access policy
+      policy: "{{ lookup('file', '../configuration/bucket-policy.json') }}"
+
+  - name: Create IAM role
+    community.aws.iam_role:
+      state: present
+      wait: yes
+      region: "{{ config.aws.region }}"
+      name: "{{ config.aws.iam.role.name }}"
+      assume_role_policy_document: "{{ lookup('file','../configuration/role-policy.json') }}"
+      managed_policies: "{{ config.aws.iam.policy.name }}"
+      description: IAM role for S3 bucket
+      tags:
+        Name: "{{ config.aws.iam.role.name }}"
+
+  - name: Create Instance
+    ec2_instance: # https://docs.ansible.com/ansible/latest/collections/amazon/aws/ec2_instance_module.html#parameters
+      state: running
+      wait: yes # wait until the instance is in the specified state (running), so the public IP address is available in the next task
+      region: "{{ config.aws.region }}"
+      # availability_zone: "{{ config.aws.zone }}" # mutually exclusive with vpc_subnet_id
+      vpc_subnet_id: "{{ subnet_out.subnet.id }}" # use vpc_subnet_id to make sure the security group is available for assignment
+      network:
+        assign_public_ip: "{{ config.aws.ec2.instance.assign_public_ip }}"
+        groups: "{{ group_out.group_id }}"
+      security_group: "{{ config.aws.ec2.vpc.group.name }}"
+      count: 1
+      image_id: "{{ config.aws.ec2.instance.image }}"
+      instance_type: "{{ config.aws.ec2.instance.type }}"
+      key_name: "{{ config.aws.ec2.key.name }}"
+      instance_role: "{{ config.aws.iam.role.name }}"
+      # todo: explicitly configure EBS instead of using defaults?
+      # termination_protection: yes # uncomment if needed, or delete later
+      tags:
+        Name: "{{ config.aws.ec2.instance.name }}"
+    register: instance_out
+    retries: 10
+    delay: 5 # seconds between retries
+    until: instance_out is not failed
+
+  - name: Get instance_id
+    set_fact:
+      instance_id: "{{ item.instance_id }}"
+    with_items: "{{ instance_out.instances }}"
+
+
+- name: Add Current Instance to hosts
+  ansible.builtin.import_playbook: ../util/current-instance-get-host.yml
+  
+- name: Register Alerts # temporarily disable to not annoy me during development
+  ansible.builtin.import_playbook: register-cloudwatch-alarm.yml
+  vars:
+    instance_id: "{{ instance_id }}"
+

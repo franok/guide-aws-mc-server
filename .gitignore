@@ -1,3 +1,9 @@
 *.pem
 *.gpg
 *credentials.csv
+*.retry
+.hosts
+configuration/vars/config.yml
+!configuration/vars/config.yml.template
+configuration/bucket-policy.json
+!configuration/bucket-policy.json.template

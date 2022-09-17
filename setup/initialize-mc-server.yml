@@ -1,0 +1,44 @@
+---
+- name: Setup the Minecraft Server
+  hosts: just_launched
+  become: yes # become root
+  user: ec2-user
+  vars_files: # variable precedence https://docs.ansible.com/ansible/2.7/user_guide/playbooks_variables.html#variable-precedence-where-should-i-put-a-variable
+     - ../configuration/vars/config.yml
+  vars:
+    ansible_ssh_private_key_file: "{{ config.ssh.keyfile }}"
+  gather_facts: true
+  tasks:
+    - name: Create /minecraft directory
+      ansible.builtin.file:
+        path: /minecraft
+        state: directory
+        mode: '0755'
+
+    - name: Own /minecraft directory
+      ansible.builtin.shell: sudo chown -R ec2-user:ec2-user /minecraft
+    
+    - name: Copy mc-server.tar from s3 cold storage to ebs volume, if not exists
+      ansible.builtin.shell: aws s3 cp s3://{{ config.aws.s3.bucket.name }}/ansible/setup/mc-server.tar .
+      args:
+        chdir: /minecraft/ # go to minecraft dir, before running command
+        creates: /minecraft/mc-server.tar # if not already exists
+    
+    - name: Extract mc-server.tar to /minecraft/mc-server
+      ansible.builtin.shell: tar -xf mc-server.tar --strip-components=1
+      args:
+        chdir: /minecraft/ # go to minecraft dir, before running command
+        creates: /minecraft/mc-server/ # if not already exists
+
+    - name: Copy minecraft.service from s3 cold storage to ebs volume, if not exists
+      ansible.builtin.shell: sudo aws s3 cp s3://{{ config.aws.s3.bucket.name }}/ansible/setup/minecraft.service /etc/systemd/system
+      args:
+        chdir: /minecraft/ # go to minecraft dir, before running command
+        creates: /etc/systemd/system/minecraft.service # if not already exists
+    
+    - name: Start Minecraft Server daemon
+      ansible.builtin.systemd:
+        daemon_reload: yes
+        enabled: yes
+        state: started
+        name: minecraft.service
